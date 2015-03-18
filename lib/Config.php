@@ -116,20 +116,10 @@ class Config extends Singleton
      * </code>
      *
      * @param Closure $initializer A closure
-     *
      * @return void
      */
     public static function initialize(Closure $initializer) {
         $initializer(parent::instance());
-    }
-
-    /**
-     * Returns the connection strings array.
-     *
-     * @return array
-     */
-    public function get_connections() {
-        return $this->connections;
     }
 
     /**
@@ -140,9 +130,8 @@ class Config extends Singleton
      *     'development' => 'mysql://username:password@127.0.0.1/database_name'));
      * </code>
      *
-     * @param array  $connections        Array of connections
+     * @param array $connections Array of connections
      * @param string $default_connection Optionally specify the default_connection
-     *
      * @return void
      * @throws ActiveRecord\ConfigException
      */
@@ -159,10 +148,18 @@ class Config extends Singleton
     }
 
     /**
+     * Returns the connection strings array.
+     *
+     * @return array
+     */
+    public function get_connections() {
+        return $this->connections;
+    }
+
+    /**
      * Returns a connection string if found otherwise null.
      *
      * @param string $name Name of connection to retrieve
-     *
      * @return string connection info for specified connection name
      */
     public function get_connection($name) {
@@ -196,11 +193,20 @@ class Config extends Singleton
      * Set the name of the default connection.
      *
      * @param string $name Name of a connection in the connections array
-     *
      * @return void
      */
     public function set_default_connection($name) {
         $this->default_connection = $name;
+    }
+
+    /**
+     * Sets the directory where models are located.
+     *
+     * @param string $dir Directory path containing your models
+     * @return void
+     */
+    public function set_model_directory($dir) {
+        $this->model_directory = $dir;
     }
 
     /**
@@ -218,30 +224,9 @@ class Config extends Singleton
     }
 
     /**
-     * Sets the directory where models are located.
-     *
-     * @param string $dir Directory path containing your models
-     *
-     * @return void
-     */
-    public function set_model_directory($dir) {
-        $this->model_directory = $dir;
-    }
-
-    /**
-     * Return whether or not logging is on
-     *
-     * @return boolean
-     */
-    public function get_logging() {
-        return $this->logging;
-    }
-
-    /**
      * Turn on/off logging
      *
      * @param boolean $bool
-     *
      * @return void
      */
     public function set_logging($bool) {
@@ -249,20 +234,10 @@ class Config extends Singleton
     }
 
     /**
-     * Returns the logger
-     *
-     * @return object
-     */
-    public function get_logger() {
-        return $this->logger;
-    }
-
-    /**
      * Sets the logger object for future SQL logging, and optional method name
      *
      * @param object $logger
      * @param string $method
-     *
      * @return void
      * @throws ConfigException if Logger objecct does not implement public log()
      */
@@ -275,6 +250,24 @@ class Config extends Singleton
 
         $this->logger = $logger;
         $this->logger_method = $method;
+    }
+
+    /**
+     * Return whether or not logging is on
+     *
+     * @return boolean
+     */
+    public function get_logging() {
+        return $this->logging;
+    }
+
+    /**
+     * Returns the logger
+     *
+     * @return object
+     */
+    public function get_logger() {
+        return $this->logger;
     }
 
     /**
@@ -316,7 +309,7 @@ class Config extends Singleton
      * $config->set_cache("memcached://localhost",array("expire" => 60));
      * </code>
      *
-     * @param array $urls    Urls to your cache server cluster
+     * @param array $urls Urls to your cache server cluster
      * @param array $options Array of options
      */
     public function set_cache($urls, $options = array()) {

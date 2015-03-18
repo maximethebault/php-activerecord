@@ -30,8 +30,16 @@ class OciAdapter extends Connection
         }
     }
 
+    public function supports_sequences() {
+        return true;
+    }
+
     public function get_next_sequence_value($sequence_name) {
         return $this->query_and_fetch_one('SELECT ' . $this->next_sequence_value($sequence_name) . ' FROM dual');
+    }
+
+    public function next_sequence_value($sequence_name) {
+        return "$sequence_name.nextval";
     }
 
     public function date_to_string($datetime) {
@@ -42,34 +50,17 @@ class OciAdapter extends Connection
         return $datetime->format('d-M-Y h:i:s A');
     }
 
+    // $string = DD-MON-YYYY HH12:MI:SS(\.[0-9]+) AM
+    public function string_to_datetime($string) {
+        return parent::string_to_datetime(str_replace('.000000', '', $string));
+    }
+
     public function limit($sql, $offset, $limit) {
         $offset = intval($offset);
         $stop = $offset + intval($limit);
         return
             "SELECT * FROM (SELECT a.*, rownum ar_rnum__ FROM ($sql) a " .
             "WHERE rownum <= $stop) WHERE ar_rnum__ > $offset";
-    }
-
-    public function native_database_types() {
-        return array(
-            'primary_key' => "NUMBER(38) NOT NULL PRIMARY KEY",
-            'string'      => array('name' => 'VARCHAR2', 'length' => 255),
-            'text'        => array('name' => 'CLOB'),
-            'integer'     => array('name' => 'NUMBER', 'length' => 38),
-            'float'       => array('name' => 'NUMBER'),
-            'datetime'    => array('name' => 'DATE'),
-            'timestamp'   => array('name' => 'DATE'),
-            'time'        => array('name' => 'DATE'),
-            'date'        => array('name' => 'DATE'),
-            'binary'      => array('name' => 'BLOB'),
-            'boolean'     => array('name' => 'NUMBER', 'length' => 1)
-        );
-    }
-
-    // $string = DD-MON-YYYY HH12:MI:SS(\.[0-9]+) AM
-
-    public function next_sequence_value($sequence_name) {
-        return "$sequence_name.nextval";
     }
 
     public function query_column_info($table) {
@@ -90,18 +81,6 @@ class OciAdapter extends Connection
 
     public function query_for_tables() {
         return $this->query("SELECT table_name FROM user_tables");
-    }
-
-    public function set_encoding($charset) {
-        // is handled in the constructor
-    }
-
-    public function string_to_datetime($string) {
-        return parent::string_to_datetime(str_replace('.000000', '', $string));
-    }
-
-    public function supports_sequences() {
-        return true;
     }
 
     public function create_column(&$column) {
@@ -139,6 +118,26 @@ class OciAdapter extends Connection
         $c->default = $c->cast($column['data_default'], $this);
 
         return $c;
+    }
+
+    public function set_encoding($charset) {
+        // is handled in the constructor
+    }
+
+    public function native_database_types() {
+        return array(
+            'primary_key' => "NUMBER(38) NOT NULL PRIMARY KEY",
+            'string' => array('name' => 'VARCHAR2', 'length' => 255),
+            'text' => array('name' => 'CLOB'),
+            'integer' => array('name' => 'NUMBER', 'length' => 38),
+            'float' => array('name' => 'NUMBER'),
+            'datetime' => array('name' => 'DATE'),
+            'timestamp' => array('name' => 'DATE'),
+            'time' => array('name' => 'DATE'),
+            'date' => array('name' => 'DATE'),
+            'binary' => array('name' => 'BLOB'),
+            'boolean' => array('name' => 'NUMBER', 'length' => 1)
+        );
     }
 }
 

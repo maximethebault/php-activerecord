@@ -16,7 +16,6 @@ class ConnectionManager extends Singleton
 
     /**
      * Array of {@link Connection} objects.
-     *
      * @var array
      */
     static private $connections = array();
@@ -25,9 +24,7 @@ class ConnectionManager extends Singleton
      * If $name is null then the default connection will be returned.
      *
      * @see Config
-     *
      * @param string $name Optional name of a connection
-     *
      * @return Connection
      */
     public static function get_connection($name = null) {

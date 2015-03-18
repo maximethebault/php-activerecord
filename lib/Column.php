@@ -25,93 +25,82 @@ class Column
 
     /**
      * Map a type to an column type.
-     *
      * @static
      * @var array
      */
     static $TYPE_MAPPING = array(
-        'datetime'  => self::DATETIME,
+        'datetime' => self::DATETIME,
         'timestamp' => self::DATETIME,
-        'date'      => self::DATE,
-        'time'      => self::TIME,
-        'boolean'   => self::BOOLEAN,
-        'int'       => self::INTEGER,
-        'tinyint'   => self::INTEGER,
-        'smallint'  => self::INTEGER,
+        'date' => self::DATE,
+        'time' => self::TIME,
+        'boolean' => self::BOOLEAN,
+        'int' => self::INTEGER,
+        'tinyint' => self::INTEGER,
+        'smallint' => self::INTEGER,
         'mediumint' => self::INTEGER,
-        'bigint'    => self::INTEGER,
-        'float'     => self::DECIMAL,
-        'double'    => self::DECIMAL,
-        'numeric'   => self::DECIMAL,
-        'decimal'   => self::DECIMAL,
-        'dec'       => self::DECIMAL);
+        'bigint' => self::INTEGER,
+        'float' => self::DECIMAL,
+        'double' => self::DECIMAL,
+        'numeric' => self::DECIMAL,
+        'decimal' => self::DECIMAL,
+        'dec' => self::DECIMAL);
 
     /**
      * The true name of this column.
-     *
      * @var string
      */
     public $name;
 
     /**
      * The inflected name of this columns .. hyphens/spaces will be => _.
-     *
      * @var string
      */
     public $inflected_name;
 
     /**
      * The type of this column: STRING, INTEGER, ...
-     *
      * @var integer
      */
     public $type;
 
     /**
      * The raw database specific type.
-     *
      * @var string
      */
     public $raw_type;
 
     /**
      * The maximum length of this column.
-     *
      * @var int
      */
     public $length;
 
     /**
      * True if this column allows null.
-     *
      * @var boolean
      */
     public $nullable;
 
     /**
      * True if this column is a primary key.
-     *
      * @var boolean
      */
     public $pk;
 
     /**
      * The default value of the column.
-     *
      * @var mixed
      */
     public $default;
 
     /**
      * True if this column is set to auto_increment.
-     *
      * @var boolean
      */
     public $auto_increment;
 
     /**
      * Name of the sequence to use for this column if any.
-     *
      * @var boolean
      */
     public $sequence;
@@ -119,9 +108,8 @@ class Column
     /**
      * Casts a value to the column's type.
      *
-     * @param mixed      $value      The value to cast
+     * @param mixed $value The value to cast
      * @param Connection $connection The Connection this column belongs to
-     *
      * @return mixed type-casted value
      */
     public function cast($value, $connection) {
@@ -159,7 +147,6 @@ class Column
 
     /**
      * Sets the $type member variable.
-     *
      * @return mixed
      */
     public function map_raw_type() {

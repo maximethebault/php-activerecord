@@ -105,7 +105,6 @@ class UndefinedPropertyException extends ModelException
      * Sets the exception message to show the undefined property's name.
      *
      * @param str $property_name name of undefined property
-     *
      * @return void
      */
     public function __construct($class_name, $property_name) {
@@ -132,9 +131,8 @@ class ReadOnlyException extends ModelException
     /**
      * Sets the exception message to show the undefined property's name.
      *
-     * @param str $class_name  name of the model that is read only
+     * @param str $class_name name of the model that is read only
      * @param str $method_name name of method which attempted to modify the model
-     *
      * @return void
      */
     public function __construct($class_name, $method_name) {

@@ -57,7 +57,7 @@ use Closure;
  * </ul>
  *
  * @package ActiveRecord
- * @link    http://www.phpactiverecord.org/guides/callbacks
+ * @link http://www.phpactiverecord.org/guides/callbacks
  */
 class CallBack
 {
@@ -94,7 +94,6 @@ class CallBack
 
     /**
      * List of public methods of the given model
-     *
      * @var array
      */
     private $publicMethods;
@@ -110,7 +109,6 @@ class CallBack
      * Creates a CallBack.
      *
      * @param string $model_class_name The name of a {@link Model} class
-     *
      * @return CallBack
      */
     public function __construct($model_class_name) {
@@ -138,6 +136,69 @@ class CallBack
     }
 
     /**
+     * Returns all the callbacks registered for a callback type.
+     *
+     * @param $name string Name of a callback (see {@link VALID_CALLBACKS $VALID_CALLBACKS})
+     * @return array array of callbacks or null if invalid callback name.
+     */
+    public function get_callbacks($name) {
+        return isset($this->registry[$name]) ? $this->registry[$name] : null;
+    }
+
+    /**
+     * Invokes a callback.
+     *
+     * @internal This is the only piece of the CallBack class that carries its own logic for the
+     * model object. For (after|before)_(create|update) callbacks, it will merge with
+     * a generic 'save' callback which is called first for the lease amount of precision.
+     *
+     * @param string $model Model to invoke the callback on.
+     * @param string $name Name of the callback to invoke
+     * @param boolean $must_exist Set to true to raise an exception if the callback does not exist.
+     * @return mixed null if $name was not a valid callback type or false if a method was invoked
+     * that was for a before_* callback and that method returned false. If this happens, execution
+     * of any other callbacks after the offending callback will not occur.
+     */
+    public function invoke($model, $name, $must_exist = true) {
+        if($must_exist && !array_key_exists($name, $this->registry)) {
+            throw new ActiveRecordException("No callbacks were defined for: $name on " . get_class($model));
+        }
+
+        // if it doesn't exist it might be a /(after|before)_(create|update)/ so we still need to run the save
+        // callback
+        if(!array_key_exists($name, $this->registry)) {
+            $registry = array();
+        }
+        else {
+            $registry = $this->registry[$name];
+        }
+
+        $first = substr($name, 0, 6);
+
+        // starts with /(after|before)_(create|update)/
+        if(($first == 'after_' || $first == 'before') && (($second = substr($name, 7, 5)) == 'creat' || $second == 'updat' || $second == 'reate' || $second == 'pdate')) {
+            $temporal_save = str_replace(array('create', 'update'), 'save', $name);
+
+            if(!isset($this->registry[$temporal_save])) {
+                $this->registry[$temporal_save] = array();
+            }
+
+            $registry = array_merge($this->registry[$temporal_save], $registry ? $registry : array());
+        }
+
+        if($registry) {
+            foreach($registry as $method) {
+                $ret = ($method instanceof Closure ? $method($model) : $model->$method());
+
+                if(false === $ret && $first === 'before') {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * Register a new callback.
      *
      * The option array can contain the following parameters:
@@ -145,10 +206,9 @@ class CallBack
      * <li><b>prepend:</b> Add this callback at the beginning of the existing callbacks (true) or at the end (false, default)</li>
      * </ul>
      *
-     * @param string $name                   Name of callback type (see {@link VALID_CALLBACKS $VALID_CALLBACKS})
-     * @param mixed  $closure_or_method_name Either a closure or the name of a method on the {@link Model}
-     * @param array  $options                Options array
-     *
+     * @param string $name Name of callback type (see {@link VALID_CALLBACKS $VALID_CALLBACKS})
+     * @param mixed $closure_or_method_name Either a closure or the name of a method on the {@link Model}
+     * @param array $options Options array
      * @return void
      * @throws ActiveRecordException if invalid callback type or callback method was not found
      */
@@ -192,71 +252,6 @@ class CallBack
         else {
             $this->registry[$name][] = $closure_or_method_name;
         }
-    }
-
-    /**
-     * Returns all the callbacks registered for a callback type.
-     *
-     * @param $name string Name of a callback (see {@link VALID_CALLBACKS $VALID_CALLBACKS})
-     *
-     * @return array array of callbacks or null if invalid callback name.
-     */
-    public function get_callbacks($name) {
-        return isset($this->registry[$name]) ? $this->registry[$name] : null;
-    }
-
-    /**
-     * Invokes a callback.
-     *
-     * @internal This is the only piece of the CallBack class that carries its own logic for the
-     * model object. For (after|before)_(create|update) callbacks, it will merge with
-     * a generic 'save' callback which is called first for the lease amount of precision.
-     *
-     * @param string  $model      Model to invoke the callback on.
-     * @param string  $name       Name of the callback to invoke
-     * @param boolean $must_exist Set to true to raise an exception if the callback does not exist.
-     *
-     * @return mixed null if $name was not a valid callback type or false if a method was invoked
-     * that was for a before_* callback and that method returned false. If this happens, execution
-     * of any other callbacks after the offending callback will not occur.
-     */
-    public function invoke($model, $name, $must_exist = true) {
-        if($must_exist && !array_key_exists($name, $this->registry)) {
-            throw new ActiveRecordException("No callbacks were defined for: $name on " . get_class($model));
-        }
-
-        // if it doesn't exist it might be a /(after|before)_(create|update)/ so we still need to run the save
-        // callback
-        if(!array_key_exists($name, $this->registry)) {
-            $registry = array();
-        }
-        else {
-            $registry = $this->registry[$name];
-        }
-
-        $first = substr($name, 0, 6);
-
-        // starts with /(after|before)_(create|update)/
-        if(($first == 'after_' || $first == 'before') && (($second = substr($name, 7, 5)) == 'creat' || $second == 'updat' || $second == 'reate' || $second == 'pdate')) {
-            $temporal_save = str_replace(array('create', 'update'), 'save', $name);
-
-            if(!isset($this->registry[$temporal_save])) {
-                $this->registry[$temporal_save] = array();
-            }
-
-            $registry = array_merge($this->registry[$temporal_save], $registry ? $registry : array());
-        }
-
-        if($registry) {
-            foreach($registry as $method) {
-                $ret = ($method instanceof Closure ? $method($model) : $model->$method());
-
-                if(false === $ret && $first === 'before') {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 }
 

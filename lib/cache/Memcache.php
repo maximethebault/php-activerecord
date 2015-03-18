@@ -18,7 +18,6 @@ class Memcache
      * <li><b>host:</b> host for the memcache server </li>
      * <li><b>port:</b> port for the memcache server </li>
      * </ul>
-     *
      * @param array $urls
      */
     public function __construct($urls) {

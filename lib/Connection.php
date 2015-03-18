@@ -21,62 +21,24 @@ abstract class Connection
 {
 
     /**
-     * Database's date format
-     *
-     * @var string
-     */
-    static $date_format = 'Y-m-d';
-    /**
-     * Database's datetime format
-     *
-     * @var string
-     */
-    static $datetime_format = 'Y-m-d H:i:s T';
-    /**
-     * Default PDO options to set for each connection.
-     *
-     * @var array
-     */
-    static $PDO_OPTIONS = array(
-        PDO::ATTR_ERRMODE           => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_ORACLE_NULLS      => PDO::NULL_NATURAL,
-        PDO::ATTR_STRINGIFY_FETCHES => false);
-    /**
-     * The quote character for stuff like column and field names.
-     *
-     * @var string
-     */
-    static $QUOTE_CHARACTER = '`';
-    /**
-     * Default port.
-     *
-     * @var int
-     */
-    static $DEFAULT_PORT = 0;
-    /**
      * The PDO connection object.
-     *
      * @var mixed
      */
     public $connection;
+
     /**
      * The last query run.
-     *
      * @var string
      */
     public $last_query;
-    /**
-     * The name of the protocol that is used.
-     *
-     * @var string
-     */
-    public $protocol;
+
     /**
      * Switch for logging.
      *
      * @var bool
      */
     private $logging = false;
+
     /**
      * Contains a Logger object that must impelement a logging method.
      *
@@ -86,6 +48,7 @@ abstract class Connection
      * @var object
      */
     private $logger;
+
     /**
      * contains the name of the logging method
      *
@@ -95,42 +58,52 @@ abstract class Connection
     private $logger_method;
 
     /**
-     * Class Connection is a singleton. Access it via instance().
-     *
-     * @param array $info Array containing URL parts
-     *
-     * @return Connection
+     * The name of the protocol that is used.
+     * @var string
      */
-    protected function __construct($info) {
-        try {
-            // unix sockets start with a /
-            if($info->host[0] != '/') {
-                $host = "host=$info->host";
+    public $protocol;
 
-                if(isset($info->port)) {
-                    $host .= ";port=$info->port";
-                }
-            }
-            else {
-                $host = "unix_socket=$info->host";
-            }
+    /**
+     * Database's date format
+     * @var string
+     */
+    static $date_format = 'Y-m-d';
 
-            $this->connection = new PDO("$info->protocol:$host;dbname=$info->db", $info->user, $info->pass, static::$PDO_OPTIONS);
-        }
-        catch(PDOException $e) {
-            throw new DatabaseException($e);
-        }
-    }
+    /**
+     * Database's datetime format
+     * @var string
+     */
+    static $datetime_format = 'Y-m-d H:i:s T';
+
+    /**
+     * Default PDO options to set for each connection.
+     * @var array
+     */
+    static $PDO_OPTIONS = array(
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_ORACLE_NULLS => PDO::NULL_NATURAL,
+        PDO::ATTR_STRINGIFY_FETCHES => false);
+
+    /**
+     * The quote character for stuff like column and field names.
+     * @var string
+     */
+    static $QUOTE_CHARACTER = '`';
+
+    /**
+     * Default port.
+     * @var int
+     */
+    static $DEFAULT_PORT = 0;
 
     /**
      * Retrieve a database connection.
      *
      * @param string $connection_string_or_connection_name A database connection string (ex. mysql://user:pass@host[:port]/dbname)
-     *                                                     Everything after the protocol:// part is specific to the connection adapter.
-     *                                                     OR
-     *                                                     A connection name that is set in ActiveRecord\Config
-     *                                                     If null it will use the default connection specified by ActiveRecord\Config->set_default_connection
-     *
+     *   Everything after the protocol:// part is specific to the connection adapter.
+     *   OR
+     *   A connection name that is set in ActiveRecord\Config
+     *   If null it will use the default connection specified by ActiveRecord\Config->set_default_connection
      * @return Connection
      * @see parse_connection_url
      */
@@ -173,6 +146,25 @@ abstract class Connection
     }
 
     /**
+     * Loads the specified class for an adapter.
+     *
+     * @param string $adapter Name of the adapter.
+     * @return string The full name of the class including namespace.
+     */
+    private static function load_adapter_class($adapter) {
+        $class = ucwords($adapter) . 'Adapter';
+        $fqclass = 'ActiveRecord\\' . $class;
+        $source = __DIR__ . "/adapters/$class.php";
+
+        if(!file_exists($source)) {
+            throw new DatabaseException("$fqclass not found!");
+        }
+
+        require_once($source);
+        return $fqclass;
+    }
+
+    /**
      * Use this for any adapters that can take connection info in the form below
      * to set the adapters connection info.
      *
@@ -192,7 +184,6 @@ abstract class Connection
      * </code>
      *
      * @param string $connection_url A connection URL
-     *
      * @return object the parsed URL as an object.
      */
     public static function parse_connection_url($connection_url) {
@@ -263,30 +254,36 @@ abstract class Connection
     }
 
     /**
-     * Loads the specified class for an adapter.
+     * Class Connection is a singleton. Access it via instance().
      *
-     * @param string $adapter Name of the adapter.
-     *
-     * @return string The full name of the class including namespace.
+     * @param array $info Array containing URL parts
+     * @return Connection
      */
-    private static function load_adapter_class($adapter) {
-        $class = ucwords($adapter) . 'Adapter';
-        $fqclass = 'ActiveRecord\\' . $class;
-        $source = __DIR__ . "/adapters/$class.php";
+    protected function __construct($info) {
+        try {
+            // unix sockets start with a /
+            if($info->host[0] != '/') {
+                $host = "host=$info->host";
 
-        if(!file_exists($source)) {
-            throw new DatabaseException("$fqclass not found!");
+                if(isset($info->port)) {
+                    $host .= ";port=$info->port";
+                }
+            }
+            else {
+                $host = "unix_socket=$info->host";
+            }
+
+            $this->connection = new PDO("$info->protocol:$host;dbname=$info->db", $info->user, $info->pass, static::$PDO_OPTIONS);
         }
-
-        require_once($source);
-        return $fqclass;
+        catch(PDOException $e) {
+            throw new DatabaseException($e);
+        }
     }
 
     /**
      * Retrieves column meta data for the specified table.
      *
      * @param string $table Name of a table
-     *
      * @return array An array of {@link Column} objects.
      */
     public function columns($table) {
@@ -294,7 +291,7 @@ abstract class Connection
         $sth = $this->query_column_info($table);
 
         while(($row = $sth->fetch())) {
-            $row = array_change_key_case($row); //all keys to LOWERCASE hm I meant lowercase
+            $row = array_change_key_case($row);//all keys to LOWERCASE hm I meant lowercase
             $c = $this->create_column($row);
             $columns[$c->name] = $c;
         }
@@ -302,19 +299,9 @@ abstract class Connection
     }
 
     /**
-     * Query for column meta info and return statement handle.
-     *
-     * @param string $table Name of a table
-     *
-     * @return PDOStatement
-     */
-    abstract public function query_column_info($table);
-
-    /**
      * Escapes quotes in a string.
      *
      * @param string $string The string to be quoted.
-     *
      * @return string The string with any quotes in it properly escaped.
      */
     public function escape($string) {
@@ -325,7 +312,6 @@ abstract class Connection
      * Retrieve the insert id of the last model saved.
      *
      * @param string $sequence Optional name of a sequence to use
-     *
      * @return int
      */
     public function insert_id($sequence = null) {
@@ -333,25 +319,10 @@ abstract class Connection
     }
 
     /**
-     * Execute a query that returns maximum of one row with one field and return it.
-     *
-     * @param string $sql     Raw SQL string to execute.
-     * @param array  &$values Optional array of values to bind to the query.
-     *
-     * @return string
-     */
-    public function query_and_fetch_one($sql, &$values = array()) {
-        $sth = $this->query($sql, $values);
-        $row = $sth->fetch(PDO::FETCH_NUM);
-        return $row[0];
-    }
-
-    /**
      * Execute a raw SQL query on the database.
      *
-     * @param string $sql     Raw SQL string to execute.
-     * @param array  &$values Optional array of bind values
-     *
+     * @param string $sql Raw SQL string to execute.
+     * @param array &$values Optional array of bind values
      * @return mixed A result set object
      */
     public function query($sql, &$values = array()) {
@@ -389,9 +360,22 @@ abstract class Connection
     }
 
     /**
+     * Execute a query that returns maximum of one row with one field and return it.
+     *
+     * @param string $sql Raw SQL string to execute.
+     * @param array &$values Optional array of values to bind to the query.
+     * @return string
+     */
+    public function query_and_fetch_one($sql, &$values = array()) {
+        $sth = $this->query($sql, $values);
+        $row = $sth->fetch(PDO::FETCH_NUM);
+        return $row[0];
+    }
+
+    /**
      * Execute a raw SQL query and fetch the results.
      *
-     * @param string  $sql     Raw SQL string to execute.
+     * @param string $sql Raw SQL string to execute.
      * @param Closure $handler Closure that will be passed the fetched results.
      */
     public function query_and_fetch($sql, Closure $handler) {
@@ -417,14 +401,6 @@ abstract class Connection
 
         return $tables;
     }
-
-    /**
-     * Query for all tables in the current database. The result must only
-     * contain one column which has the name of the table.
-     *
-     * @return PDOStatement
-     */
-    abstract function query_for_tables();
 
     /**
      * Starts a transaction.
@@ -465,9 +441,8 @@ abstract class Connection
     /**
      * Return a default sequence name for the specified table.
      *
-     * @param string $table       Name of a table
+     * @param string $table Name of a table
      * @param string $column_name Name of column sequence is for
-     *
      * @return string sequence name or null if not supported.
      */
     public function get_sequence_name($table, $column_name) {
@@ -478,7 +453,6 @@ abstract class Connection
      * Return SQL for getting the next value in a sequence.
      *
      * @param string $sequence_name Name of the sequence
-     *
      * @return string
      */
     public function next_sequence_value($sequence_name) {
@@ -489,7 +463,6 @@ abstract class Connection
      * Quote a name like table names and field names.
      *
      * @param string $string String to quote.
-     *
      * @return string
      */
     public function quote_name($string) {
@@ -501,7 +474,6 @@ abstract class Connection
      * Return a date time formatted into the database's date format.
      *
      * @param DateTime $datetime The DateTime object
-     *
      * @return string
      */
     public function date_to_string($datetime) {
@@ -512,7 +484,6 @@ abstract class Connection
      * Return a date time formatted into the database's datetime format.
      *
      * @param DateTime $datetime The DateTime object
-     *
      * @return string
      */
     public function datetime_to_string($datetime) {
@@ -523,7 +494,6 @@ abstract class Connection
      * Converts a string representation of a datetime into a DateTime object.
      *
      * @param string $string A datetime in the form accepted by date_create()
-     *
      * @return DateTime
      */
     public function string_to_datetime($string) {
@@ -540,13 +510,28 @@ abstract class Connection
     /**
      * Adds a limit clause to the SQL query.
      *
-     * @param string $sql    The SQL statement.
-     * @param int    $offset Row offset to start at.
-     * @param int    $limit  Maximum number of rows to return.
-     *
+     * @param string $sql The SQL statement.
+     * @param int $offset Row offset to start at.
+     * @param int $limit Maximum number of rows to return.
      * @return string The SQL query that will limit results to specified parameters
      */
     abstract function limit($sql, $offset, $limit);
+
+    /**
+     * Query for column meta info and return statement handle.
+     *
+     * @param string $table Name of a table
+     * @return PDOStatement
+     */
+    abstract public function query_column_info($table);
+
+    /**
+     * Query for all tables in the current database. The result must only
+     * contain one column which has the name of the table.
+     *
+     * @return PDOStatement
+     */
+    abstract function query_for_tables();
 
     /**
      * Executes query to specify the character set for this connection.

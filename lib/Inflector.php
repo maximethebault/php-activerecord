@@ -22,21 +22,9 @@ abstract class Inflector
     }
 
     /**
-     * Determines if a string contains all lowercase characters.
-     *
-     * @param string $s string to check
-     *
-     * @return bool
-     */
-    public static function is_lower($s) {
-        return (strtolower($s) === $s);
-    }
-
-    /**
      * Turn a string into its camelized version.
      *
      * @param string $s string to convert
-     *
      * @return string
      */
     public function camelize($s) {
@@ -64,10 +52,29 @@ abstract class Inflector
     }
 
     /**
+     * Determines if a string contains all uppercase characters.
+     *
+     * @param string $s string to check
+     * @return bool
+     */
+    public static function is_upper($s) {
+        return (strtoupper($s) === $s);
+    }
+
+    /**
+     * Determines if a string contains all lowercase characters.
+     *
+     * @param string $s string to check
+     * @return bool
+     */
+    public static function is_lower($s) {
+        return (strtolower($s) === $s);
+    }
+
+    /**
      * Convert a camelized string to a lowercase, underscored string.
      *
      * @param string $s string to convert
-     *
      * @return string
      */
     public function uncamelize($s) {
@@ -85,29 +92,17 @@ abstract class Inflector
     }
 
     /**
-     * Determines if a string contains all uppercase characters.
-     *
-     * @param string $s string to check
-     *
-     * @return bool
-     */
-    public static function is_upper($s) {
-        return (strtoupper($s) === $s);
-    }
-
-    public function keyify($class_name) {
-        return strtolower($this->underscorify(denamespace($class_name))) . '_id';
-    }
-
-    /**
      * Convert a string with space into a underscored equivalent.
      *
      * @param string $s string to convert
-     *
      * @return string
      */
     public function underscorify($s) {
         return preg_replace(array('/[_\- ]+/', '/([a-z])([A-Z])/'), array('_', '\\1_\\2'), trim($s));
+    }
+
+    public function keyify($class_name) {
+        return strtolower($this->underscorify(denamespace($class_name))) . '_id';
     }
 
     abstract function variablize($s);

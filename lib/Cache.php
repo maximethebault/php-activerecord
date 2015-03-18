@@ -35,8 +35,8 @@ class Cache
      *
      * (Note: expiring needs to be implemented in your cache store.)
      *
-     * @param string $url     URL to your cache server
-     * @param array  $options Specify additional options
+     * @param string $url URL to your cache server
+     * @param array $options Specify additional options
      */
     public static function initialize($urls, $options = array()) {
         if(is_array($urls) && !empty($urls)) {

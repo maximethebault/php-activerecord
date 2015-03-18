@@ -43,7 +43,6 @@ class Table
 
     /**
      * A instance of CallBack for this model/table
-     *
      * @static
      * @var object ActiveRecord\CallBack
      */
@@ -53,6 +52,26 @@ class Table
      * List of relationships for this table.
      */
     private $relationships = array();
+
+    public static function load($model_class_name) {
+        if(!isset(self::$cache[$model_class_name])) {
+            /* do not place set_assoc in constructor..it will lead to infinite loop due to
+              relationships requesting the model's table, but the cache hasn't been set yet */
+            self::$cache[$model_class_name] = new Table($model_class_name);
+            self::$cache[$model_class_name]->set_associations();
+        }
+
+        return self::$cache[$model_class_name];
+    }
+
+    public static function clear_cache($model_class_name = null) {
+        if($model_class_name && array_key_exists($model_class_name, self::$cache)) {
+            unset(self::$cache[$model_class_name]);
+        }
+        else {
+            self::$cache = array();
+        }
+    }
 
     public function __construct($class_name) {
         $this->class = Reflections::instance()->add($class_name)->get($class_name);
@@ -85,156 +104,45 @@ class Table
         return ($this->conn = ConnectionManager::get_connection($connection));
     }
 
-    public static function clear_cache($model_class_name = null) {
-        if($model_class_name && array_key_exists($model_class_name, self::$cache)) {
-            unset(self::$cache[$model_class_name]);
-        }
-        else {
-            self::$cache = array();
-        }
-    }
-
-    private function set_table_name() {
-        if(($table = $this->class->getStaticPropertyValue('table', null)) || ($table = $this->class->getStaticPropertyValue('table_name', null))) {
-            $this->table = $table;
-        }
-        else {
-            // infer table name from the class name
-            $this->table = Inflector::instance()->tableize($this->class->getName());
-
-            // strip namespaces from the table name if any
-            $parts = explode('\\', $this->table);
-            $this->table = $parts[count($parts) - 1];
+    public function create_joins($joins) {
+        if(!is_array($joins)) {
+            return $joins;
         }
 
-        if(($db = $this->class->getStaticPropertyValue('db', null)) || ($db = $this->class->getStaticPropertyValue('db_name', null))) {
-            $this->db_name = $db;
-        }
-    }
+        $self = $this->table;
+        $ret = $space = '';
 
-    private function get_meta_data() {
-        // as more adapters are added probably want to do this a better way
-        // than using instanceof but gud enuff for now
-        $quote_name = !($this->conn instanceof PgsqlAdapter);
+        $existing_tables = array();
+        foreach($joins as $value) {
+            $ret .= $space;
 
-        $table_name = $this->get_fully_qualified_table_name($quote_name);
-        $conn = $this->conn;
-        $this->columns = Cache::get("get_meta_data-$table_name", function () use ($conn, $table_name) {
-            return $conn->columns($table_name);
-        });
-    }
+            if(stripos($value, 'JOIN ') === false) {
+                if(array_key_exists($value, $this->relationships)) {
+                    $rel = $this->get_relationship($value);
 
-    public function get_fully_qualified_table_name($quote_name = true) {
-        $table = $quote_name ? $this->conn->quote_name($this->table) : $this->table;
-
-        if($this->db_name) {
-            $table = $this->conn->quote_name($this->db_name) . ".$table";
-        }
-
-        return $table;
-    }
-
-    private function set_primary_key() {
-        if(($pk = $this->class->getStaticPropertyValue('pk', null)) || ($pk = $this->class->getStaticPropertyValue('primary_key', null))) {
-            $this->pk = is_array($pk) ? $pk : array($pk);
-        }
-        else {
-            $this->pk = array();
-
-            foreach($this->columns as $c) {
-                if($c->pk) {
-                    $this->pk[] = $c->inflected_name;
-                }
-            }
-        }
-    }
-
-    private function set_sequence_name() {
-        if(!$this->conn->supports_sequences()) {
-            return;
-        }
-
-        if(!($this->sequence = $this->class->getStaticPropertyValue('sequence'))) {
-            $this->sequence = $this->conn->get_sequence_name($this->table, $this->pk[0]);
-        }
-    }
-
-    /**
-     * Rebuild the delegates array into format that we can more easily work with in Model.
-     * Will end up consisting of array of:
-     *
-     * array('delegate' => array('field1','field2',...),
-     *       'to'       => 'delegate_to_relationship',
-     *       'prefix'    => 'prefix')
-     */
-    private function set_delegates() {
-        $delegates = $this->class->getStaticPropertyValue('delegate', array());
-        $new = array();
-
-        if(!array_key_exists('processed', $delegates)) {
-            $delegates['processed'] = false;
-        }
-
-        if(!empty($delegates) && !$delegates['processed']) {
-            foreach($delegates as &$delegate) {
-                if(!is_array($delegate) || !isset($delegate['to'])) {
-                    continue;
-                }
-
-                if(!isset($delegate['prefix'])) {
-                    $delegate['prefix'] = null;
-                }
-
-                $new_delegate = array(
-                    'to'       => $delegate['to'],
-                    'prefix'   => $delegate['prefix'],
-                    'delegate' => array());
-
-                foreach($delegate as $name => $value) {
-                    if(is_numeric($name)) {
-                        $new_delegate['delegate'][] = $value;
+                    // if there is more than 1 join for a given table we need to alias the table names
+                    if(array_key_exists($rel->class_name, $existing_tables)) {
+                        $alias = $value;
+                        $existing_tables[$rel->class_name]++;
                     }
-                }
+                    else {
+                        $existing_tables[$rel->class_name] = true;
+                        $alias = null;
+                    }
 
-                $new[] = $new_delegate;
+                    $ret .= $rel->construct_inner_join_sql($this, false, $alias);
+                }
+                else {
+                    throw new RelationshipException("Relationship named $value has not been declared for class: {$this->class->getName()}");
+                }
+            }
+            else {
+                $ret .= $value;
             }
 
-            $new['processed'] = true;
-            $this->class->setStaticPropertyValue('delegate', $new);
+            $space = ' ';
         }
-    }
-
-    /**
-     * @deprecated Model.php now checks for get|set_ methods via method_exists so there is no need for declaring static g|setters.
-     */
-    private function set_setters_and_getters() {
-        $getters = $this->class->getStaticPropertyValue('getters', array());
-        $setters = $this->class->getStaticPropertyValue('setters', array());
-
-        if(!empty($getters) || !empty($setters)) {
-            trigger_error('static::$getters and static::$setters are deprecated. Please define your setters and getters by declaring methods in your model prefixed with get_ or set_. See
-			http://www.phpactiverecord.org/projects/main/wiki/Utilities#attribute-setters and http://www.phpactiverecord.org/projects/main/wiki/Utilities#attribute-getters on how to make use of this option.', E_USER_DEPRECATED);
-        }
-    }
-
-    public static function load($model_class_name) {
-        if(!isset(self::$cache[$model_class_name])) {
-            /* do not place set_assoc in constructor..it will lead to infinite loop due to
-              relationships requesting the model's table, but the cache hasn't been set yet */
-            self::$cache[$model_class_name] = new Table($model_class_name);
-            self::$cache[$model_class_name]->set_associations();
-        }
-
-        return self::$cache[$model_class_name];
-    }
-
-    public function find($options) {
-        $sql = $this->options_to_sql($options);
-        $readonly = (array_key_exists('readonly', $options) && $options['readonly']) ? true : false;
-        $eager_load = array_key_exists('include', $options) ? $options['include'] : null;
-        $cache = array_key_exists('cache', $options) ? $options['cache'] : null;
-
-        return $this->find_by_sql($sql->to_s(), $sql->get_where_values(), $readonly, $eager_load, $cache);
+        return $ret;
     }
 
     public function options_to_sql($options) {
@@ -294,99 +202,13 @@ class Table
         return $sql;
     }
 
-    public function create_joins($joins) {
-        if(!is_array($joins)) {
-            return $joins;
-        }
+    public function find($options) {
+        $sql = $this->options_to_sql($options);
+        $readonly = (array_key_exists('readonly', $options) && $options['readonly']) ? true : false;
+        $eager_load = array_key_exists('include', $options) ? $options['include'] : null;
+        $cache = array_key_exists('cache', $options) ? $options['cache'] : null;
 
-        $self = $this->table;
-        $ret = $space = '';
-
-        $existing_tables = array();
-        foreach($joins as $value) {
-            $ret .= $space;
-
-            if(stripos($value, 'JOIN ') === false) {
-                if(array_key_exists($value, $this->relationships)) {
-                    $rel = $this->get_relationship($value);
-
-                    // if there is more than 1 join for a given table we need to alias the table names
-                    if(array_key_exists($rel->class_name, $existing_tables)) {
-                        $alias = $value;
-                        $existing_tables[$rel->class_name]++;
-                    }
-                    else {
-                        $existing_tables[$rel->class_name] = true;
-                        $alias = null;
-                    }
-
-                    $ret .= $rel->construct_inner_join_sql($this, false, $alias);
-                }
-                else {
-                    throw new RelationshipException("Relationship named $value has not been declared for class: {$this->class->getName()}");
-                }
-            }
-            else {
-                $ret .= $value;
-            }
-
-            $space = ' ';
-        }
-        return $ret;
-    }
-
-    /**
-     * Retrieve a relationship object for this table. Strict as true will throw an error
-     * if the relationship name does not exist.
-     *
-     * @param $name   string name of Relationship
-     * @param $strict bool
-     *
-     * @throws RelationshipException
-     * @return Relationship or null
-     */
-    public function get_relationship($name, $strict = false) {
-        if($this->has_relationship($name)) {
-            return $this->relationships[$name];
-        }
-
-        if($strict) {
-            throw new RelationshipException("Relationship named $name has not been declared for class: {$this->class->getName()}");
-        }
-
-        return null;
-    }
-
-    /**
-     * Does a given relationship exist?
-     *
-     * @param $name string name of Relationship
-     *
-     * @return bool
-     */
-    public function has_relationship($name) {
-        return array_key_exists($name, $this->relationships);
-    }
-
-    /**
-     * Replaces any aliases used in a hash based condition.
-     *
-     * @param $hash array A hash
-     * @param $map  array Hash of used_name => real_name
-     *
-     * @return array Array with any aliases replaced with their read field name
-     */
-    private function map_names(&$hash, &$map) {
-        $ret = array();
-
-        foreach($hash as $name => &$value) {
-            if(array_key_exists($name, $map)) {
-                $name = $map[$name];
-            }
-
-            $ret[$name] = $value;
-        }
-        return $ret;
+        return $this->find_by_sql($sql->to_s(), $sql->get_where_values(), $readonly, $eager_load, $cache);
     }
 
     public function find_by_sql($sql, $values = null, $readonly = false, $includes = null, $cache = null) {
@@ -425,7 +247,7 @@ class Table
         };
 
         $cache = Cache::format_options($cache);
-        if($cache !== null) {
+        if($cache !== NULL) {
             // Attempt to pull results from cache
             $cache_key = isset($cache['key']) ? $cache['key'] : md5(serialize(array($sql, $values)));
             list($list, $attrs) = Cache::get($cache_key, $query_callback, $cache['expire']);
@@ -442,34 +264,12 @@ class Table
         return $list;
     }
 
-    public function &process_data($hash) {
-        if(!$hash) {
-            return $hash;
-        }
-
-        foreach($hash as $name => &$value) {
-            if($value instanceof \DateTime) {
-                if(isset($this->columns[$name]) && $this->columns[$name]->type == Column::DATE) {
-                    $hash[$name] = $this->conn->date_to_string($value);
-                }
-                else {
-                    $hash[$name] = $this->conn->datetime_to_string($value);
-                }
-            }
-            else {
-                $hash[$name] = $value;
-            }
-        }
-        return $hash;
-    }
-
     /**
      * Executes an eager load of a given named relationship for this table.
      *
-     * @param $models   array found modesl for this table
-     * @param $attrs    array of attrs from $models
+     * @param $models array found modesl for this table
+     * @param $attrs array of attrs from $models
      * @param $includes array eager load directives
-     *
      * @return void
      */
     private function execute_eager_load($models = array(), $attrs = array(), $includes = array(), $cache = null) {
@@ -502,6 +302,47 @@ class Table
         return null;
     }
 
+    public function get_fully_qualified_table_name($quote_name = true) {
+        $table = $quote_name ? $this->conn->quote_name($this->table) : $this->table;
+
+        if($this->db_name) {
+            $table = $this->conn->quote_name($this->db_name) . ".$table";
+        }
+
+        return $table;
+    }
+
+    /**
+     * Retrieve a relationship object for this table. Strict as true will throw an error
+     * if the relationship name does not exist.
+     *
+     * @param $name string name of Relationship
+     * @param $strict bool
+     * @throws RelationshipException
+     * @return Relationship or null
+     */
+    public function get_relationship($name, $strict = false) {
+        if($this->has_relationship($name)) {
+            return $this->relationships[$name];
+        }
+
+        if($strict) {
+            throw new RelationshipException("Relationship named $name has not been declared for class: {$this->class->getName()}");
+        }
+
+        return null;
+    }
+
+    /**
+     * Does a given relationship exist?
+     *
+     * @param $name string name of Relationship
+     * @return bool
+     */
+    public function has_relationship($name) {
+        return array_key_exists($name, $this->relationships);
+    }
+
     public function insert(&$data, $pk = null, $sequence_name = null) {
         $data = $this->process_data($data);
 
@@ -532,12 +373,117 @@ class Table
         return $this->conn->query(($this->last_sql = $sql->to_s()), $values);
     }
 
+    /**
+     * Add a relationship.
+     *
+     * @param Relationship $relationship a Relationship object
+     */
+    private function add_relationship($relationship) {
+        $this->relationships[$relationship->attribute_name] = $relationship;
+    }
+
+    private function get_meta_data() {
+        // as more adapters are added probably want to do this a better way
+        // than using instanceof but gud enuff for now
+        $quote_name = !($this->conn instanceof PgsqlAdapter);
+
+        $table_name = $this->get_fully_qualified_table_name($quote_name);
+        $conn = $this->conn;
+        $this->columns = Cache::get("get_meta_data-$table_name", function () use ($conn, $table_name) {
+            return $conn->columns($table_name);
+        });
+    }
+
+    /**
+     * Replaces any aliases used in a hash based condition.
+     *
+     * @param $hash array A hash
+     * @param $map array Hash of used_name => real_name
+     * @return array Array with any aliases replaced with their read field name
+     */
+    private function map_names(&$hash, &$map) {
+        $ret = array();
+
+        foreach($hash as $name => &$value) {
+            if(array_key_exists($name, $map)) {
+                $name = $map[$name];
+            }
+
+            $ret[$name] = $value;
+        }
+        return $ret;
+    }
+
+    public function &process_data($hash) {
+        if(!$hash) {
+            return $hash;
+        }
+
+        foreach($hash as $name => &$value) {
+            if($value instanceof \DateTime) {
+                if(isset($this->columns[$name]) && $this->columns[$name]->type == Column::DATE) {
+                    $hash[$name] = $this->conn->date_to_string($value);
+                }
+                else {
+                    $hash[$name] = $this->conn->datetime_to_string($value);
+                }
+            }
+            else {
+                $hash[$name] = $value;
+            }
+        }
+        return $hash;
+    }
+
+    private function set_primary_key() {
+        if(($pk = $this->class->getStaticPropertyValue('pk', null)) || ($pk = $this->class->getStaticPropertyValue('primary_key', null))) {
+            $this->pk = is_array($pk) ? $pk : array($pk);
+        }
+        else {
+            $this->pk = array();
+
+            foreach($this->columns as $c) {
+                if($c->pk) {
+                    $this->pk[] = $c->inflected_name;
+                }
+            }
+        }
+    }
+
+    private function set_table_name() {
+        if(($table = $this->class->getStaticPropertyValue('table', null)) || ($table = $this->class->getStaticPropertyValue('table_name', null))) {
+            $this->table = $table;
+        }
+        else {
+            // infer table name from the class name
+            $this->table = Inflector::instance()->tableize($this->class->getName());
+
+            // strip namespaces from the table name if any
+            $parts = explode('\\', $this->table);
+            $this->table = $parts[count($parts) - 1];
+        }
+
+        if(($db = $this->class->getStaticPropertyValue('db', null)) || ($db = $this->class->getStaticPropertyValue('db_name', null))) {
+            $this->db_name = $db;
+        }
+    }
+
+    private function set_sequence_name() {
+        if(!$this->conn->supports_sequences()) {
+            return;
+        }
+
+        if(!($this->sequence = $this->class->getStaticPropertyValue('sequence'))) {
+            $this->sequence = $this->conn->get_sequence_name($this->table, $this->pk[0]);
+        }
+    }
+
     private function set_associations() {
         require_once 'Relationship.php';
         $namespace = $this->class->getNamespaceName();
 
         foreach($this->class->getStaticProperties() as $name => $definitions) {
-            if(!$definitions) # || !is_array($definitions))
+            if(!$definitions)# || !is_array($definitions))
             {
                 continue;
             }
@@ -572,12 +518,61 @@ class Table
     }
 
     /**
-     * Add a relationship.
+     * Rebuild the delegates array into format that we can more easily work with in Model.
+     * Will end up consisting of array of:
      *
-     * @param Relationship $relationship a Relationship object
+     * array('delegate' => array('field1','field2',...),
+     *       'to'       => 'delegate_to_relationship',
+     *       'prefix'    => 'prefix')
      */
-    private function add_relationship($relationship) {
-        $this->relationships[$relationship->attribute_name] = $relationship;
+    private function set_delegates() {
+        $delegates = $this->class->getStaticPropertyValue('delegate', array());
+        $new = array();
+
+        if(!array_key_exists('processed', $delegates)) {
+            $delegates['processed'] = false;
+        }
+
+        if(!empty($delegates) && !$delegates['processed']) {
+            foreach($delegates as &$delegate) {
+                if(!is_array($delegate) || !isset($delegate['to'])) {
+                    continue;
+                }
+
+                if(!isset($delegate['prefix'])) {
+                    $delegate['prefix'] = null;
+                }
+
+                $new_delegate = array(
+                    'to' => $delegate['to'],
+                    'prefix' => $delegate['prefix'],
+                    'delegate' => array());
+
+                foreach($delegate as $name => $value) {
+                    if(is_numeric($name)) {
+                        $new_delegate['delegate'][] = $value;
+                    }
+                }
+
+                $new[] = $new_delegate;
+            }
+
+            $new['processed'] = true;
+            $this->class->setStaticPropertyValue('delegate', $new);
+        }
+    }
+
+    /**
+     * @deprecated Model.php now checks for get|set_ methods via method_exists so there is no need for declaring static g|setters.
+     */
+    private function set_setters_and_getters() {
+        $getters = $this->class->getStaticPropertyValue('getters', array());
+        $setters = $this->class->getStaticPropertyValue('setters', array());
+
+        if(!empty($getters) || !empty($setters)) {
+            trigger_error('static::$getters and static::$setters are deprecated. Please define your setters and getters by declaring methods in your model prefixed with get_ or set_. See
+			http://www.phpactiverecord.org/projects/main/wiki/Utilities#attribute-setters and http://www.phpactiverecord.org/projects/main/wiki/Utilities#attribute-getters on how to make use of this option.', E_USER_DEPRECATED);
+        }
     }
 }
 

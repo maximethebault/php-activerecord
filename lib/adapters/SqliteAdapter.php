@@ -26,6 +26,20 @@ class SqliteAdapter extends Connection
         $this->connection = new PDO("sqlite:$info->host", null, null, static::$PDO_OPTIONS);
     }
 
+    public function limit($sql, $offset, $limit) {
+        $offset = is_null($offset) ? '' : intval($offset) . ',';
+        $limit = intval($limit);
+        return "$sql LIMIT {$offset}$limit";
+    }
+
+    public function query_column_info($table) {
+        return $this->query("pragma table_info($table)");
+    }
+
+    public function query_for_tables() {
+        return $this->query("SELECT name FROM sqlite_master");
+    }
+
     public function create_column($column) {
         $c = new Column();
         $c->inflected_name = Inflector::instance()->variablize($column['name']);
@@ -70,43 +84,29 @@ class SqliteAdapter extends Connection
         return $c;
     }
 
-    public function accepts_limit_and_order_for_update_and_delete() {
-        return true;
+    public function set_encoding($charset) {
+        throw new ActiveRecordException("SqliteAdapter::set_charset not supported.");
     }
 
-    public function limit($sql, $offset, $limit) {
-        $offset = is_null($offset) ? '' : intval($offset) . ',';
-        $limit = intval($limit);
-        return "$sql LIMIT {$offset}$limit";
+    public function accepts_limit_and_order_for_update_and_delete() {
+        return true;
     }
 
     public function native_database_types() {
         return array(
             'primary_key' => 'integer not null primary key',
-            'string'      => array('name' => 'varchar', 'length' => 255),
-            'text'        => array('name' => 'text'),
-            'integer'     => array('name' => 'integer'),
-            'float'       => array('name' => 'float'),
-            'decimal'     => array('name' => 'decimal'),
-            'datetime'    => array('name' => 'datetime'),
-            'timestamp'   => array('name' => 'datetime'),
-            'time'        => array('name' => 'time'),
-            'date'        => array('name' => 'date'),
-            'binary'      => array('name' => 'blob'),
-            'boolean'     => array('name' => 'boolean')
+            'string' => array('name' => 'varchar', 'length' => 255),
+            'text' => array('name' => 'text'),
+            'integer' => array('name' => 'integer'),
+            'float' => array('name' => 'float'),
+            'decimal' => array('name' => 'decimal'),
+            'datetime' => array('name' => 'datetime'),
+            'timestamp' => array('name' => 'datetime'),
+            'time' => array('name' => 'time'),
+            'date' => array('name' => 'date'),
+            'binary' => array('name' => 'blob'),
+            'boolean' => array('name' => 'boolean')
         );
-    }
-
-    public function query_column_info($table) {
-        return $this->query("pragma table_info($table)");
-    }
-
-    public function query_for_tables() {
-        return $this->query("SELECT name FROM sqlite_master");
-    }
-
-    public function set_encoding($charset) {
-        throw new ActiveRecordException("SqliteAdapter::set_charset not supported.");
     }
 }
 

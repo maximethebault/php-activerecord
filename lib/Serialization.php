@@ -41,19 +41,21 @@ use XmlWriter;
  * </code>
  *
  * @package ActiveRecord
- * @link    http://www.phpactiverecord.org/guides/utilities#topic-serialization
+ * @link http://www.phpactiverecord.org/guides/utilities#topic-serialization
  */
 abstract class Serialization
 {
+    protected $model;
+    protected $options;
+    protected $attributes;
+
     /**
      * The default format to serialize DateTime objects to.
      *
      * @see DateTime
      */
     public static $DATETIME_FORMAT = 'iso8601';
-    protected     $model;
-    protected     $options;
-    protected     $attributes;
+
     /**
      * Set this to true if the serializer needs to create a nested array keyed
      * on the name of the included classes such as for xml serialization.
@@ -90,9 +92,8 @@ abstract class Serialization
     /**
      * Constructs a {@link Serialization} object.
      *
-     * @param Model $model    The model to serialize
+     * @param Model $model The model to serialize
      * @param array &$options Options for serialization
-     *
      * @return Serialization
      */
     public function __construct(Model $model, &$options) {
@@ -116,12 +117,6 @@ abstract class Serialization
 
             $exclude = array_diff(array_keys($this->attributes), $this->options['only']);
             $this->attributes = array_diff_key($this->attributes, array_flip($exclude));
-        }
-    }
-
-    final protected function options_to_a($key) {
-        if(!is_array($this->options[$key])) {
-            $this->options[$key] = array($this->options[$key]);
         }
     }
 
@@ -158,6 +153,15 @@ abstract class Serialization
         }
     }
 
+    private function check_only_method() {
+        if(isset($this->options['only_method'])) {
+            $method = $this->options['only_method'];
+            if(method_exists($this->model, $method)) {
+                $this->attributes = $this->model->$method();
+            }
+        }
+    }
+
     private function check_include() {
         if(isset($this->options['include'])) {
             $this->options_to_a('include');
@@ -176,7 +180,7 @@ abstract class Serialization
                     if(!is_array($assoc)) {
                         if($assoc != null) {
                             $serialized = new $serializer_class($assoc, $options);
-                            $this->attributes[($options['alias'] ? $options['alias'] : $association)] = $serialized->to_a();
+                            $this->attributes[(array_key_exists('alias', $options) ? $options['alias'] : $association)] = $serialized->to_a();
                         }
                     }
                     else {
@@ -193,7 +197,7 @@ abstract class Serialization
                             }
                         }
 
-                        $this->attributes[($options['alias'] ? $options['alias'] : $association)] = $includes;
+                        $this->attributes[(array_key_exists('alias', $options) ? $options['alias'] : $association)] = $includes;
                     }
                 }
                 catch(UndefinedPropertyException $e) {
@@ -203,18 +207,14 @@ abstract class Serialization
         }
     }
 
-    private function check_only_method() {
-        if(isset($this->options['only_method'])) {
-            $method = $this->options['only_method'];
-            if(method_exists($this->model, $method)) {
-                $this->attributes = $this->model->$method();
-            }
+    final protected function options_to_a($key) {
+        if(!is_array($this->options[$key])) {
+            $this->options[$key] = array($this->options[$key]);
         }
     }
 
     /**
      * Returns the attributes array.
-     *
      * @return array
      */
     final public function to_a() {
@@ -228,7 +228,6 @@ abstract class Serialization
 
     /**
      * Returns the serialized object as a string.
-     *
      * @see to_s
      * @return string
      */
@@ -238,7 +237,6 @@ abstract class Serialization
 
     /**
      * Performs the serialization.
-     *
      * @return string
      */
     abstract public function to_s();

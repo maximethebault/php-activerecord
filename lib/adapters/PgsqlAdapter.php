@@ -17,38 +17,20 @@ class PgsqlAdapter extends Connection
     static $QUOTE_CHARACTER = '"';
     static $DEFAULT_PORT    = 5432;
 
+    public function supports_sequences() {
+        return true;
+    }
+
     public function get_sequence_name($table, $column_name) {
         return "{$table}_{$column_name}_seq";
     }
 
-    public function limit($sql, $offset, $limit) {
-        return $sql . ' LIMIT ' . intval($limit) . ' OFFSET ' . intval($offset);
-    }
-
-    public function native_database_types() {
-        return array(
-            'primary_key'      => 'serial primary key',
-            'string'           => array('name' => 'character varying', 'length' => 255),
-            'text'             => array('name' => 'text'),
-            'integer'          => array('name' => 'integer'),
-            'float'            => array('name' => 'float'),
-            'datetime'         => array('name' => 'datetime'),
-            'timestamp'        => array('name' => 'timestamp'),
-            'time'             => array('name' => 'time'),
-            'date'             => array('name' => 'date'),
-            'binary'           => array('name' => 'binary'),
-            'boolean'          => array('name' => 'boolean'),
-            'bigint'           => array('name' => 'integer'),
-            'smallint'         => array('name' => 'integer'),
-            'real'             => array('name' => 'float'),
-            'double precision' => array('name' => 'float'),
-            'numeric'          => array('name' => 'float'),
-            'decimal'          => array('name' => 'float')
-        );
-    }
-
     public function next_sequence_value($sequence_name) {
         return "nextval('" . str_replace("'", "\\'", $sequence_name) . "')";
+    }
+
+    public function limit($sql, $offset, $limit) {
+        return $sql . ' LIMIT ' . intval($limit) . ' OFFSET ' . intval($offset);
     }
 
     public function query_column_info($table) {
@@ -82,14 +64,6 @@ SQL;
 
     public function query_for_tables() {
         return $this->query("SELECT tablename FROM pg_tables WHERE schemaname NOT IN('information_schema','pg_catalog')");
-    }
-
-    public function set_encoding($charset) {
-        $this->query("SET NAMES '$charset'");
-    }
-
-    public function supports_sequences() {
-        return true;
     }
 
     public function create_column(&$column) {
@@ -138,6 +112,32 @@ SQL;
             }
         }
         return $c;
+    }
+
+    public function set_encoding($charset) {
+        $this->query("SET NAMES '$charset'");
+    }
+
+    public function native_database_types() {
+        return array(
+            'primary_key' => 'serial primary key',
+            'string' => array('name' => 'character varying', 'length' => 255),
+            'text' => array('name' => 'text'),
+            'integer' => array('name' => 'integer'),
+            'float' => array('name' => 'float'),
+            'datetime' => array('name' => 'datetime'),
+            'timestamp' => array('name' => 'timestamp'),
+            'time' => array('name' => 'time'),
+            'date' => array('name' => 'date'),
+            'binary' => array('name' => 'binary'),
+            'boolean' => array('name' => 'boolean'),
+            'bigint' => array('name' => 'integer'),
+            'smallint' => array('name' => 'integer'),
+            'real' => array('name' => 'float'),
+            'double precision' => array('name' => 'float'),
+            'numeric' => array('name' => 'float'),
+            'decimal' => array('name' => 'float')
+        );
     }
 
     public function boolean_to_string($value) {

@@ -44,29 +44,6 @@ class Expressions
         }
     }
 
-    private function build_sql_from_hash(&$hash, $glue) {
-        $sql = $g = "";
-
-        foreach($hash as $name => $value) {
-            if($this->connection) {
-                $name = $this->connection->quote_name($name);
-            }
-
-            if(is_array($value)) {
-                $sql .= "$g$name IN(?)";
-            }
-            elseif(is_null($value)) {
-                $sql .= "$g$name IS ?";
-            }
-            else {
-                $sql .= "$g$name=?";
-            }
-
-            $g = $glue;
-        }
-        return array($sql, array_values($hash));
-    }
-
     /**
      * Bind a value to the specific one based index. There must be a bind marker
      * for each value bound or to_s() will throw an exception.
@@ -139,6 +116,29 @@ class Expressions
             $ret .= $ch;
         }
         return $ret;
+    }
+
+    private function build_sql_from_hash(&$hash, $glue) {
+        $sql = $g = "";
+
+        foreach($hash as $name => $value) {
+            if($this->connection) {
+                $name = $this->connection->quote_name($name);
+            }
+
+            if(is_array($value)) {
+                $sql .= "$g$name IN(?)";
+            }
+            elseif(is_null($value)) {
+                $sql .= "$g$name IS ?";
+            }
+            else {
+                $sql .= "$g$name=?";
+            }
+
+            $g = $glue;
+        }
+        return array($sql, array_values($hash));
     }
 
     private function substitute(&$values, $substitute, $pos, $parameter_index) {

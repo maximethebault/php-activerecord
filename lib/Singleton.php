@@ -40,6 +40,14 @@ abstract class Singleton
     }
 
     /**
+     * Singleton objects should not be cloned.
+     *
+     * @return void
+     */
+    final private function __clone() {
+    }
+
+    /**
      * Similar to a get_called_class() for a child class to invoke.
      *
      * @return string
@@ -47,14 +55,6 @@ abstract class Singleton
     final protected function get_called_class() {
         $backtrace = debug_backtrace();
         return get_class($backtrace[2]['object']);
-    }
-
-    /**
-     * Singleton objects should not be cloned.
-     *
-     * @return void
-     */
-    final private function __clone() {
     }
 }
 

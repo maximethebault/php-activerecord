@@ -37,12 +37,16 @@ use IteratorAggregate;
  * </code>
  *
  * @package ActiveRecord
- * @see     Errors
- * @link    http://www.phpactiverecord.org/guides/validations
+ * @see Errors
+ * @link http://www.phpactiverecord.org/guides/validations
  */
 class Validations
 {
 
+    private        $model;
+    private        $options                    = array();
+    private        $validators                 = array();
+    private        $record;
     private static $VALIDATION_FUNCTIONS       = array(
         'validates_presence_of',
         'validates_size_of',
@@ -54,37 +58,32 @@ class Validations
         'validates_uniqueness_of'
     );
     private static $DEFAULT_VALIDATION_OPTIONS = array(
-        'on'          => 'save',
-        'allow_null'  => false,
+        'on' => 'save',
+        'allow_null' => false,
         'allow_blank' => false,
-        'message'     => null,
+        'message' => null,
     );
     private static $ALL_RANGE_OPTIONS          = array(
-        'is'      => null,
-        'within'  => null,
-        'in'      => null,
+        'is' => null,
+        'within' => null,
+        'in' => null,
         'minimum' => null,
         'maximum' => null,
     );
     private static $ALL_NUMERICALITY_CHECKS    = array(
-        'greater_than'             => null,
+        'greater_than' => null,
         'greater_than_or_equal_to' => null,
-        'equal_to'                 => null,
-        'less_than'                => null,
-        'less_than_or_equal_to'    => null,
-        'odd'                      => null,
-        'even'                     => null
+        'equal_to' => null,
+        'less_than' => null,
+        'less_than_or_equal_to' => null,
+        'odd' => null,
+        'even' => null
     );
-    private        $model;
-    private        $options                    = array();
-    private        $validators                 = array();
-    private        $record;
 
     /**
      * Constructs a {@link Validations} object.
      *
      * @param Model $model The model to validate
-     *
      * @return Validations
      */
     public function __construct(Model $model) {
@@ -202,6 +201,25 @@ class Validations
     }
 
     /**
+     * This is the opposite of {@link validates_include_of}.
+     *
+     * Available options:
+     *
+     * <ul>
+     * <li><b>in/within:</b> attribute should/shouldn't be a value within an array</li>
+     * <li><b>message:</b> custome error message</li>
+     * <li><b>allow_blank:</b> allow blank strings</li>
+     * <li><b>allow_null:</b> allow null strings</li>
+     * </ul>
+     *
+     * @param array $attrs Validation definition
+     * @see validates_inclusion_of
+     */
+    public function validates_exclusion_of($attrs) {
+        $this->validates_inclusion_or_exclusion_of('exclusion', $attrs);
+    }
+
+    /**
      * Validates that a value is in or out of a specified list of values.
      *
      * Available options:
@@ -215,9 +233,8 @@ class Validations
      *
      * @see validates_inclusion_of
      * @see validates_exclusion_of
-     *
-     * @param string $type  Either inclusion or exclusion
-     * @param        $attrs Validation definition
+     * @param string $type Either inclusion or exclusion
+     * @param $attrs Validation definition
      */
     public function validates_inclusion_or_exclusion_of($type, $attrs) {
         $configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::$DEFAULT_ERROR_MESSAGES[$type], 'on' => 'save'));
@@ -248,34 +265,6 @@ class Validations
                 $this->record->add($attribute, $message);
             }
         }
-    }
-
-    private function is_null_with_option($var, &$options) {
-        return (is_null($var) && (isset($options['allow_null']) && $options['allow_null']));
-    }
-
-    private function is_blank_with_option($var, &$options) {
-        return (Utils::is_blank($var) && (isset($options['allow_blank']) && $options['allow_blank']));
-    }
-
-    /**
-     * This is the opposite of {@link validates_include_of}.
-     *
-     * Available options:
-     *
-     * <ul>
-     * <li><b>in/within:</b> attribute should/shouldn't be a value within an array</li>
-     * <li><b>message:</b> custome error message</li>
-     * <li><b>allow_blank:</b> allow blank strings</li>
-     * <li><b>allow_null:</b> allow null strings</li>
-     * </ul>
-     *
-     * @param array $attrs Validation definition
-     *
-     * @see validates_inclusion_of
-     */
-    public function validates_exclusion_of($attrs) {
-        $this->validates_inclusion_or_exclusion_of('exclusion', $attrs);
     }
 
     /**
@@ -392,6 +381,53 @@ class Validations
     }
 
     /**
+     * Validates that a value is matches a regex.
+     *
+     * <code>
+     * class Person extends ActiveRecord\Model {
+     *   static $validates_format_of = array(
+     *     array('email', 'with' => '/^.*?@.*$/')
+     *   );
+     * }
+     * </code>
+     *
+     * Available options:
+     *
+     * <ul>
+     * <li><b>with:</b> a regular expression</li>
+     * <li><b>message:</b> custom error message</li>
+     * <li><b>allow_blank:</b> allow blank strings</li>
+     * <li><b>allow_null:</b> allow null strings</li>
+     * </ul>
+     *
+     * @param array $attrs Validation definition
+     */
+    public function validates_format_of($attrs) {
+        $configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::$DEFAULT_ERROR_MESSAGES['invalid'], 'on' => 'save', 'with' => null));
+
+        foreach($attrs as $attr) {
+            $options = array_merge($configuration, $attr);
+            $attribute = $options[0];
+            $var = $this->model->$attribute;
+
+            if(is_null($options['with']) || !is_string($options['with']) || !is_string($options['with'])) {
+                throw new ValidationsArgumentError('A regular expression must be supplied as the [with] option of the configuration array.');
+            }
+            else {
+                $expression = $options['with'];
+            }
+
+            if($this->is_null_with_option($var, $options) || $this->is_blank_with_option($var, $options)) {
+                continue;
+            }
+
+            if(!@preg_match($expression, $var)) {
+                $this->record->add($attribute, $options['message']);
+            }
+        }
+    }
+
+    /**
      * Validates the length of a value.
      *
      * <code>
@@ -417,8 +453,8 @@ class Validations
      */
     public function validates_length_of($attrs) {
         $configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array(
-            'too_long'     => Errors::$DEFAULT_ERROR_MESSAGES['too_long'],
-            'too_short'    => Errors::$DEFAULT_ERROR_MESSAGES['too_short'],
+            'too_long' => Errors::$DEFAULT_ERROR_MESSAGES['too_long'],
+            'too_short' => Errors::$DEFAULT_ERROR_MESSAGES['too_short'],
             'wrong_length' => Errors::$DEFAULT_ERROR_MESSAGES['wrong_length']
         ));
 
@@ -497,53 +533,6 @@ class Validations
     }
 
     /**
-     * Validates that a value is matches a regex.
-     *
-     * <code>
-     * class Person extends ActiveRecord\Model {
-     *   static $validates_format_of = array(
-     *     array('email', 'with' => '/^.*?@.*$/')
-     *   );
-     * }
-     * </code>
-     *
-     * Available options:
-     *
-     * <ul>
-     * <li><b>with:</b> a regular expression</li>
-     * <li><b>message:</b> custom error message</li>
-     * <li><b>allow_blank:</b> allow blank strings</li>
-     * <li><b>allow_null:</b> allow null strings</li>
-     * </ul>
-     *
-     * @param array $attrs Validation definition
-     */
-    public function validates_format_of($attrs) {
-        $configuration = array_merge(self::$DEFAULT_VALIDATION_OPTIONS, array('message' => Errors::$DEFAULT_ERROR_MESSAGES['invalid'], 'on' => 'save', 'with' => null));
-
-        foreach($attrs as $attr) {
-            $options = array_merge($configuration, $attr);
-            $attribute = $options[0];
-            $var = $this->model->$attribute;
-
-            if(is_null($options['with']) || !is_string($options['with']) || !is_string($options['with'])) {
-                throw new ValidationsArgumentError('A regular expression must be supplied as the [with] option of the configuration array.');
-            }
-            else {
-                $expression = $options['with'];
-            }
-
-            if($this->is_null_with_option($var, $options) || $this->is_blank_with_option($var, $options)) {
-                continue;
-            }
-
-            if(!@preg_match($expression, $var)) {
-                $this->record->add($attribute, $options['message']);
-            }
-        }
-    }
-
-    /**
      * Validates the uniqueness of a value.
      *
      * <code>
@@ -612,6 +601,14 @@ class Validations
             }
         }
     }
+
+    private function is_null_with_option($var, &$options) {
+        return (is_null($var) && (isset($options['allow_null']) && $options['allow_null']));
+    }
+
+    private function is_blank_with_option($var, &$options) {
+        return (Utils::is_blank($var) && (isset($options['allow_blank']) && $options['allow_blank']));
+    }
 }
 
 /**
@@ -622,36 +619,35 @@ class Validations
 class Errors implements IteratorAggregate
 {
 
-    public static $DEFAULT_ERROR_MESSAGES = array(
-        'inclusion'                => "is not included in the list",
-        'exclusion'                => "is reserved",
-        'invalid'                  => "is invalid",
-        'confirmation'             => "doesn't match confirmation",
-        'accepted'                 => "must be accepted",
-        'empty'                    => "can't be empty",
-        'blank'                    => "can't be blank",
-        'too_long'                 => "is too long (maximum is %d characters)",
-        'too_short'                => "is too short (minimum is %d characters)",
-        'wrong_length'             => "is the wrong length (should be %d characters)",
-        'taken'                    => "has already been taken",
-        'not_a_number'             => "is not a number",
-        'greater_than'             => "must be greater than %d",
-        'equal_to'                 => "must be equal to %d",
-        'less_than'                => "must be less than %d",
-        'odd'                      => "must be odd",
-        'even'                     => "must be even",
-        'unique'                   => "must be unique",
-        'less_than_or_equal_to'    => "must be less than or equal to %d",
-        'greater_than_or_equal_to' => "must be greater than or equal to %d"
-    );
     private       $model;
     private       $errors;
+    public static $DEFAULT_ERROR_MESSAGES = array(
+        'inclusion' => "is not included in the list",
+        'exclusion' => "is reserved",
+        'invalid' => "is invalid",
+        'confirmation' => "doesn't match confirmation",
+        'accepted' => "must be accepted",
+        'empty' => "can't be empty",
+        'blank' => "can't be blank",
+        'too_long' => "is too long (maximum is %d characters)",
+        'too_short' => "is too short (minimum is %d characters)",
+        'wrong_length' => "is the wrong length (should be %d characters)",
+        'taken' => "has already been taken",
+        'not_a_number' => "is not a number",
+        'greater_than' => "must be greater than %d",
+        'equal_to' => "must be equal to %d",
+        'less_than' => "must be less than %d",
+        'odd' => "must be odd",
+        'even' => "must be even",
+        'unique' => "must be unique",
+        'less_than_or_equal_to' => "must be less than or equal to %d",
+        'greater_than_or_equal_to' => "must be greater than or equal to %d"
+    );
 
     /**
      * Constructs an {@link Errors} object.
      *
      * @param Model $model The model the error is for
-     *
      * @return Errors
      */
     public function __construct(Model $model) {
@@ -667,10 +663,29 @@ class Errors implements IteratorAggregate
     }
 
     /**
+     * Add an error message.
+     *
+     * @param string $attribute Name of an attribute on the model
+     * @param string $msg The error message
+     */
+    public function add($attribute, $msg) {
+        if(is_null($msg)) {
+            $msg = self:: $DEFAULT_ERROR_MESSAGES['invalid'];
+        }
+
+        if(!isset($this->errors[$attribute])) {
+            $this->errors[$attribute] = array($msg);
+        }
+        else {
+            $this->errors[$attribute][] = $msg;
+        }
+    }
+
+    /**
      * Adds an error message only if the attribute value is {@link http://www.php.net/empty empty}.
      *
      * @param string $attribute Name of an attribute on the model
-     * @param string $msg       The error message
+     * @param string $msg The error message
      */
     public function add_on_empty($attribute, $msg) {
         if(empty($msg)) {
@@ -683,29 +698,9 @@ class Errors implements IteratorAggregate
     }
 
     /**
-     * Add an error message.
-     *
-     * @param string $attribute Name of an attribute on the model
-     * @param string $msg       The error message
-     */
-    public function add($attribute, $msg) {
-        if(is_null($msg)) {
-            $msg = self :: $DEFAULT_ERROR_MESSAGES['invalid'];
-        }
-
-        if(!isset($this->errors[$attribute])) {
-            $this->errors[$attribute] = array($msg);
-        }
-        else {
-            $this->errors[$attribute][] = $msg;
-        }
-    }
-
-    /**
      * Retrieve error messages for an attribute.
      *
      * @param string $attribute Name of an attribute on the model
-     *
      * @return array or null if there is no error.
      */
     public function __get($attribute) {
@@ -720,7 +715,7 @@ class Errors implements IteratorAggregate
      * Adds the error message only if the attribute value was null or an empty string.
      *
      * @param string $attribute Name of an attribute on the model
-     * @param string $msg       The error message
+     * @param string $msg The error message
      */
     public function add_on_blank($attribute, $msg) {
         if(!$msg) {
@@ -736,7 +731,6 @@ class Errors implements IteratorAggregate
      * Returns true if the specified attribute had any error messages.
      *
      * @param string $attribute Name of an attribute on the model
-     *
      * @return boolean
      */
     public function is_invalid($attribute) {
@@ -747,7 +741,6 @@ class Errors implements IteratorAggregate
      * Returns the error message(s) for the specified attribute or null if none.
      *
      * @param string $attribute Name of an attribute on the model
-     *
      * @return string/array    Array of strings if several error occured on this attribute.
      */
     public function on($attribute) {
@@ -770,21 +763,6 @@ class Errors implements IteratorAggregate
      */
     public function get_raw_errors() {
         return $this->errors;
-    }
-
-    /**
-     * Convert all error messages to a String.
-     * This function is called implicitely if the object is casted to a string:
-     *
-     * <code>
-     * echo $error;
-     *
-     * # "Name can't be blank\nState is the wrong length (should be 2 chars)"
-     * </code>
-     * @return string
-     */
-    public function __toString() {
-        return implode("\n", $this->full_messages());
     }
 
     /**
@@ -826,7 +804,6 @@ class Errors implements IteratorAggregate
      * @param array $closure Closure to fetch the errors in some other format (optional)
      *                       This closure has the signature function($attribute, $message)
      *                       and is called for each available error message.
-     *
      * @return array
      */
     public function to_array($closure = null) {
@@ -851,6 +828,29 @@ class Errors implements IteratorAggregate
     }
 
     /**
+     * Convert all error messages to a String.
+     * This function is called implicitely if the object is casted to a string:
+     *
+     * <code>
+     * echo $error;
+     *
+     * # "Name can't be blank\nState is the wrong length (should be 2 chars)"
+     * </code>
+     * @return string
+     */
+    public function __toString() {
+        return implode("\n", $this->full_messages());
+    }
+
+    /**
+     * Returns true if there are no error messages.
+     * @return boolean
+     */
+    public function is_empty() {
+        return empty($this->errors);
+    }
+
+    /**
      * Clears out all error messages.
      */
     public function clear() {
@@ -859,7 +859,6 @@ class Errors implements IteratorAggregate
 
     /**
      * Returns the number of error messages there are.
-     *
      * @return int
      */
     public function size() {
@@ -874,15 +873,6 @@ class Errors implements IteratorAggregate
         }
 
         return $count;
-    }
-
-    /**
-     * Returns true if there are no error messages.
-     *
-     * @return boolean
-     */
-    public function is_empty() {
-        return empty($this->errors);
     }
 
     /**
