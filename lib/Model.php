@@ -1971,6 +1971,3 @@ class Model
         return true;
     }
 }
-
-;
-?>
